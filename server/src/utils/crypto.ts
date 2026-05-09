@@ -2,7 +2,7 @@
 import crypto from "crypto";
 import dotenv from "dotenv";
 
-dotenv.config();
+dotenv.config();  
 
 const ALGORITHM = "aes-256-cbc";
 const IV_LENGTH = 16; // AES block size
@@ -64,3 +64,34 @@ export function decryptData(encryptedData: string): string {
 
   return decrypted.toString("utf8");
 }
+
+
+export function decryptFrontendData(encryptedData: string): string {
+  if (!encryptedData) throw new Error("decryptFrontendData: input must not be empty");
+
+  const parts = encryptedData.split(":");
+  if (parts.length !== 2) {
+    throw new Error("decryptFrontendData: invalid format, expected '<iv_hex>:<data_hex>'");
+  }
+
+  const frontendKey = process.env.FRONTEND_CRYPTO_KEY;
+  if (!frontendKey) {
+    throw new Error("FRONTEND_CRYPTO_KEY is not defined in .env");
+  }
+
+  const [ivHex, cipherHex] = parts;
+
+  // Derive 32-byte key from frontend secret using SHA-256 (same as CryptoJS.SHA256 on frontend)
+  const key = crypto.createHash("sha256").update(frontendKey).digest();
+  const iv = Buffer.from(ivHex, "hex");
+  const encryptedBuffer = Buffer.from(cipherHex, "hex");
+
+  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+  const decrypted = Buffer.concat([
+    decipher.update(encryptedBuffer),
+    decipher.final(),
+  ]);
+
+  return decrypted.toString("utf8");
+}
+

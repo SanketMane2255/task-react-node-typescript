@@ -4,7 +4,7 @@ import axios from 'axios';
 import type{ ApiResponse, Student, AuthUser } from '../types';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: ' http://localhost:5000/api',
   headers: { 'Content-Type': 'application/json' },
   timeout: 10000,
 });
@@ -33,6 +33,8 @@ export const loginApi = async (
   encryptedEmail: string,
   encryptedPassword: string
 ): Promise<ApiResponse<AuthUser>> => {
+  console.log('API Call: /login with encrypted email and password');
+  console.log('Encrypted Email:', encryptedEmail);
   const { data } = await api.post<ApiResponse<AuthUser>>('/login', {
     email: encryptedEmail,
     password: encryptedPassword,

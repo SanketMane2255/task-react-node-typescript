@@ -1,7 +1,7 @@
 
 import { Request, Response } from "express";
 import Student, { IStudentPlain } from "../models/Student";
-import { encryptData, decryptData } from "../utils/crypto";
+import { encryptData, decryptData, decryptFrontendData } from "../utils/crypto";
 
 interface EncryptedStudentBody {
   fullName: string;
@@ -303,23 +303,62 @@ export const loginStudent = async (
       return;
     }
 
-    // Fetch all students and decrypt to find a match
-    const allStudents = await Student.find();
+    // Decrypt Level-1 (frontend encryption) to get plain text
+    let plainEmail: string;
+    let plainPassword: string;
 
+    try {
+      plainEmail = decryptFrontendData(email);
+      plainPassword = decryptFrontendData(password);
+    } catch {
+      res.status(400).json({
+        success: false,
+        message: "Invalid encrypted credentials format",
+      });
+      return;
+    }
+
+    const adminEmail    = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    // ── Check against hardcoded admin credentials first ──────────────────────
+    if (
+      adminEmail &&
+      adminPassword &&
+      plainEmail.toLowerCase().trim() === adminEmail.toLowerCase().trim() &&
+      plainPassword === adminPassword
+    ) {
+      res.status(200).json({
+        success: true,
+        message: "Login successful",
+        data: {
+          _id: "admin",
+          createdAt: new Date().toISOString(),
+          role: "admin",
+        },
+      });
+      return;
+    }
+
+    // ── Fallback: check against registered students in DB ────────────────────
+    const allStudents = await Student.find();
     let matchedStudent = null;
 
     for (const student of allStudents) {
       try {
-        const decryptedEmail = decryptData(student.email);      // Level-2 → Level-1
-        const decryptedPassword = decryptData(student.password); // Level-2 → Level-1
+        const level1Email    = decryptData(student.email);
+        const level1Password = decryptData(student.password);
+        const dbPlainEmail    = decryptFrontendData(level1Email);
+        const dbPlainPassword = decryptFrontendData(level1Password);
 
-        // Compare Level-1 encrypted values (both sides encrypted with same frontend key)
-        if (decryptedEmail === email && decryptedPassword === password) {
+        if (
+          dbPlainEmail.toLowerCase().trim() === plainEmail.toLowerCase().trim() &&
+          dbPlainPassword === plainPassword
+        ) {
           matchedStudent = student;
           break;
         }
       } catch {
-        // Skip documents that fail to decrypt (shouldn't happen in normal flow)
         continue;
       }
     }

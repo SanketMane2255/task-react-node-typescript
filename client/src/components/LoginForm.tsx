@@ -87,7 +87,7 @@ const LoginForm: React.FC = () => {
 
       <div className="w-full max-w-md animate-slide-up relative z-10">
         {/* Logo & heading */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-4">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 shadow-glow-lg mb-4">
             <GraduationCap size={30} className="text-white" />
           </div>
@@ -101,7 +101,7 @@ const LoginForm: React.FC = () => {
         </div>
 
         {/* Card */}
-        <div className="card p-8 space-y-6">
+        <div className="card p-6 space-y-6">
           {/* Security badge */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-500/10 border border-primary-500/20">
             <ShieldCheck size={15} className="text-primary-400 flex-shrink-0" />
@@ -190,14 +190,25 @@ const LoginForm: React.FC = () => {
               )}
             </button>
           </form>
-
+          {/* Dev hint — remove before production */}
+<div className="mt-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+  <p className="text-xs text-amber-400 font-body text-center font-medium mb-1">
+    Note : For first time login set your default Admin Credentials in .env file in the backend.After registering students you can use there credentials .
+  </p>
+  <p className="text-xs text-amber-300/80 font-mono text-center">
+    admin@eduvault.com  /  Admin@1234
+  </p><br />
+  <p className="text-xs text-amber-300/80 font-mono text-center">
+    This is for development/testing purposes only. We can implement a proper registration flow in the future.
+  </p>
+</div>
           <p className="text-center text-xs text-slate-500 font-body">
             Your credentials are encrypted before leaving your browser
           </p>
         </div>
 
         {/* Footer note */}
-        <p className="text-center text-xs text-slate-600 mt-6 font-body">
+        <p className="text-center text-xs text-slate-600 mt-4 font-body">
           EduVault Student Management System &copy; {new Date().getFullYear()}
         </p>
       </div>
