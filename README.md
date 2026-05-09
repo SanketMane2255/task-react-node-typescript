@@ -137,7 +137,7 @@ FRONTEND_CRYPTO_KEY=fr0ntEnd$3cr3tK3y!AES128Str0ng
 ADMIN_EMAIL=admin@eduvault.com
 ADMIN_PASSWORD=Admin@1234
 
-Note : After registration of student we can use the student's credentials for login.
+Note : For first time login use admin credentials from server .env file . After registration of student we can use the student's credentials for login.
 ```
 
 **client/.env**
