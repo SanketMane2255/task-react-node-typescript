@@ -199,3 +199,24 @@ npm run dev
 ## Login Page
 
 ![Login](./images/login.png)
+
+## Dashboard Page
+
+![DASHBOARD-1](./images/dashboard_1.png)
+
+![DASHBOARD-2](./images/dashboard_2.png)
+
+![DASHBOARD-3](./images/dashboard_3.png)
+
+## Register student Page
+
+![REGISTER_STUDENT](./images/register_student.png)
+
+## Edit student info Page
+
+![EDIT_STUDENT](./images/edit_student.png)
+
+## Delete student Page
+
+![DELETE_STUDENT](./images/delete_student.png)
+
