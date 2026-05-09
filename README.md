@@ -129,14 +129,22 @@ npm install
 ```env
 PORT=5000
 MONGO_URI=mongodb://localhost:27017/student_management
+# Backend AES Encryption Key (32 chars for AES-256)
 CRYPTO_SECRET_KEY=b@ckEnd$3cr3tK3y!AES256Str0ngKey
-JWT_SECRET=myJWT$uper$ecretKey2024!
-JWT_EXPIRES_IN=7d
+# ADD THIS — must match client/.env VITE_CRYPTO_KEY exactly
+FRONTEND_CRYPTO_KEY=fr0ntEnd$3cr3tK3y!AES128Str0ng
+# Admin credentials for first-time login
+ADMIN_EMAIL=admin@eduvault.com
+ADMIN_PASSWORD=Admin@1234
+
+Note : After registration of student we can use the student's credentials for login.
 ```
 
 **client/.env**
 ```env
-VITE_API_BASE_URL=http://localhost:5000
+# API base URL (proxied via vite.config.ts in dev)
+VITE_API_BASE_URL=http://localhost:5000/api
+# Frontend AES-256 encryption key (Level 1)
 VITE_CRYPTO_KEY=fr0ntEnd$3cr3tK3y!AES128Str0ng
 ```
 
@@ -154,7 +162,7 @@ cd client
 npm run dev
 ```
 
-- Frontend: http://localhost:3000  
+- Frontend: http://localhost:5173  
 - Backend API: http://localhost:5000
 
 ---
