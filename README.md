@@ -220,3 +220,7 @@ npm run dev
 
 ![DELETE_STUDENT](./images/delete_student.png)
 
+## Student data stored in encrypted form in DB.
+
+![STUDENT_DATA_DB](./images/db.png)
+
