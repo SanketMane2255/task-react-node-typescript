@@ -1,7 +1,8 @@
-
 import { Request, Response } from "express";
-import Student, { IStudentPlain } from "../models/Student";
+import Student from "../models/Student";
 import { encryptData, decryptData, decryptFrontendData } from "../utils/crypto";
+
+// ─── Types ───
 
 interface EncryptedStudentBody {
   fullName: string;
@@ -21,6 +22,8 @@ interface ApiResponse<T = unknown> {
   error?: string;
 }
 
+// ─── Helper: Apply Level-2 encryption to all fields ───
+
 function applyLevel2Encryption(body: EncryptedStudentBody) {
   return {
     fullName: encryptData(body.fullName),
@@ -33,6 +36,8 @@ function applyLevel2Encryption(body: EncryptedStudentBody) {
     password: encryptData(body.password),
   };
 }
+
+// ─── Helper: Strip Level-2 encryption from a stored document ─────
 
 function stripLevel2Encryption(doc: {
   _id: unknown;
@@ -62,7 +67,7 @@ function stripLevel2Encryption(doc: {
   };
 }
 
-// ─── Helper: Validate that all required fields are present ────────────────────
+// ─── Helper: Validate that all required fields are present ────
 
 function validateRequiredFields(body: Partial<EncryptedStudentBody>): string | null {
   const required: (keyof EncryptedStudentBody)[] = [
@@ -83,7 +88,7 @@ function validateRequiredFields(body: Partial<EncryptedStudentBody>): string | n
   return null;
 }
 
-// ─── Controller: POST /api/register ───────────────────────────────────────────
+// ─── Controller: POST /api/register ──────
 
 export const createStudent = async (
   req: Request,
@@ -92,7 +97,7 @@ export const createStudent = async (
   try {
     const body = req.body as Partial<EncryptedStudentBody>;
 
-    // Validate required fields
+    // ── Step 1: Validate all required fields are present ────
     const validationError = validateRequiredFields(body);
     if (validationError) {
       const response: ApiResponse = {
@@ -103,11 +108,45 @@ export const createStudent = async (
       res.status(400).json(response);
       return;
     }
+    // ── Step 2: Decrypt incoming email to plain text for duplicate check ────
+    let incomingPlainEmail: string;
+    try {
+      incomingPlainEmail = decryptFrontendData(body.email as string);
+    } catch {
+      res.status(400).json({
+        success: false,
+        message: "Invalid encrypted email format",
+      });
+      return;
+    }
 
-    // Apply Level-2 encryption
+    // ── Step 3: Check all existing students for duplicate email ───
+    const allStudents = await Student.find({}, { email: 1 }); 
+
+    for (const existingStudent of allStudents) {
+      try {
+        const level1Email = decryptData(existingStudent.email);
+
+        const existingPlainEmail = decryptFrontendData(level1Email);
+
+        if (existingPlainEmail.toLowerCase().trim() === incomingPlainEmail.toLowerCase().trim()) {
+          const response: ApiResponse = {
+            success: false,
+            message: "Email already registered. Please use a different email address.",
+            error: "DUPLICATE_EMAIL",
+          };
+          res.status(409).json(response); // 409 Conflict
+          return;
+        }
+      } catch {
+        // If a stored record fails to decrypt, skip it and continue
+        continue;
+      }
+    }
+
+    // ── Step 4: No duplicate found — apply Level-2 encryption and save ────
     const doubleEncrypted = applyLevel2Encryption(body as EncryptedStudentBody);
 
-    // Save to MongoDB
     const student = new Student(doubleEncrypted);
     const saved = await student.save();
 
@@ -128,7 +167,7 @@ export const createStudent = async (
   }
 };
 
-// ─── Controller: GET /api/students ────────────────────────────────────────────
+// ─── Controller: GET /api/students ────
 
 export const getStudents = async (
   _req: Request,
@@ -171,7 +210,7 @@ export const getStudents = async (
   }
 };
 
-// ─── Controller: PUT /api/student/:id ─────────────────────────────────────────
+// ─── Controller: PUT /api/student/:id ─────
 
 export const updateStudent = async (
   req: Request,
@@ -193,7 +232,6 @@ export const updateStudent = async (
       return;
     }
 
-    // Build partial update — only encrypt fields that are provided
     const updatePayload: Partial<ReturnType<typeof applyLevel2Encryption>> = {};
 
     const fields: (keyof EncryptedStudentBody)[] = [
@@ -245,7 +283,7 @@ export const updateStudent = async (
   }
 };
 
-// ─── Controller: DELETE /api/student/:id ──────────────────────────────────────
+// ─── Controller: DELETE /api/student/:id ─────
 
 export const deleteStudent = async (
   req: Request,
@@ -269,7 +307,9 @@ export const deleteStudent = async (
     const response: ApiResponse = {
       success: true,
       message: "Student deleted successfully",
-      data: { _id: deleted._id },
+      data: {
+        _id: deleted._id.toString(), // always return as string for consistent frontend comparison
+      },
     };
     res.status(200).json(response);
   } catch (error) {
@@ -283,7 +323,7 @@ export const deleteStudent = async (
   }
 };
 
-// ─── Controller: POST /api/login ──────────────────────────────────────────────
+// // ─── Controller: POST /api/login ──────────────────────────────────────────────
 
 export const loginStudent = async (
   req: Request,
@@ -388,3 +428,4 @@ export const loginStudent = async (
     });
   }
 };
+

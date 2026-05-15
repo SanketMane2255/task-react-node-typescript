@@ -163,7 +163,13 @@ const StudentForm: React.FC<StudentFormProps> = ({
           setErrors({});
           onSuccess();
         } else {
-          toast.error(res.message || 'Registration failed');
+           if (res.error === 'DUPLICATE_EMAIL' || res.message?.toLowerCase().includes('email already')) {
+            setErrors({ email: 'This email is already registered. Please use a different email.' });
+            setTouched((prev) => ({ ...prev, email: true }));
+            toast.error('Email already registered');
+          } else {
+            toast.error(res.message || 'Registration failed');
+          }
         }
       }
     } catch (err: unknown) {
