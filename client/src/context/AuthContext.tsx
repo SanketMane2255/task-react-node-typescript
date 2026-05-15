@@ -9,6 +9,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   login: (user: AuthUser) => void;
   logout: () => void;
+  forceLogout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -19,10 +20,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const stored = localStorage.getItem('auth_user');
       return stored ? (JSON.parse(stored) as AuthUser) : null;
     } catch {
+      // If localStorage is corrupted, start unauthenticated
+      localStorage.removeItem('auth_user');
       return null;
     }
   });
 
+  // Keep localStorage in sync whenever user state changes
   useEffect(() => {
     if (user) {
       localStorage.setItem('auth_user', JSON.stringify(user));
@@ -34,9 +38,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (userData: AuthUser) => setUser(userData);
   const logout = () => setUser(null);
 
+  // forceLogout() clears localStorage SYNCHRONOUSLY AND IMMEDIATELY 
+  // before updating React state, so there is absolutely no window for stale auth.
+   
+  const forceLogout = () => {
+    // 1. Synchronously clear localStorage right now — no async gap
+    localStorage.removeItem('auth_user');
+    // 2. Then update React state to trigger re-render and route protection
+    setUser(null);
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, login, logout }}
+      value={{ user, isAuthenticated: !!user, login, logout, forceLogout }}
     >
       {children}
     </AuthContext.Provider>

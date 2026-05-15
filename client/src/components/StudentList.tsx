@@ -1,17 +1,31 @@
 // src/components/StudentList.tsx
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  Search, Edit2, Trash2, RefreshCw, Users,
-  ChevronLeft, ChevronRight, Filter,
-  Mail, Phone, BookOpen, Calendar, MapPin,
-  ShieldOff, ChevronDown, ChevronUp,
-} from 'lucide-react';
-import toast from 'react-hot-toast';
-import LoadingSpinner from './LoadingSpinner';
-import ConfirmDialog from './ConfirmDialog';
-import { getStudentsApi, deleteStudentApi } from '../utils/api';
-import { decryptData } from '../utils/crypto';
-import type{ Student } from '../types';
+  Search,
+  Edit2,
+  Trash2,
+  RefreshCw,
+  Users,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Mail,
+  Phone,
+  BookOpen,
+  Calendar,
+  MapPin,
+  ShieldOff,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import LoadingSpinner from "./LoadingSpinner";
+import ConfirmDialog from "./ConfirmDialog";
+import { getStudentsApi, deleteStudentApi } from "../utils/api";
+import { decryptData } from "../utils/crypto";
+import type { Student } from "../types";
+import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 // ─── Props ───
 interface StudentListProps {
@@ -31,15 +45,17 @@ function decryptStudent(raw: Student): Student {
     address: decryptData(raw.address),
     courseEnrolled: decryptData(raw.courseEnrolled),
     // password intentionally not shown
-    password: '••••••••',
+    password: "••••••••",
   };
 }
 
 function formatDate(dateStr: string) {
-  if (!dateStr) return '—';
+  if (!dateStr) return "—";
   try {
-    return new Date(dateStr).toLocaleDateString('en-IN', {
-      day: '2-digit', month: 'short', year: 'numeric',
+    return new Date(dateStr).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
     });
   } catch {
     return dateStr;
@@ -49,14 +65,20 @@ function formatDate(dateStr: string) {
 const PAGE_SIZE_OPTIONS = [5, 10, 20];
 
 // ─── Component ─────────────────────────────────────────────────────────────────
-const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => {
+const StudentList: React.FC<StudentListProps> = ({
+  onEdit,
+  refreshTrigger,
+}) => {
+  const { user, forceLogout } = useAuth();
+  const navigate = useNavigate();
+
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [filterGender, setFilterGender] = useState('');
-  const [filterCourse, setFilterCourse] = useState('');
+  const [search, setSearch] = useState("");
+  const [filterGender, setFilterGender] = useState("");
+  const [filterCourse, setFilterCourse] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -71,10 +93,10 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
         const decrypted = res.data.map(decryptStudent);
         setStudents(decrypted);
       } else {
-        toast.error(res.message || 'Failed to load students');
+        toast.error(res.message || "Failed to load students");
       }
     } catch {
-      toast.error('Failed to connect to server. Is the backend running?');
+      toast.error("Failed to connect to server. Is the backend running?");
     } finally {
       setLoading(false);
     }
@@ -101,40 +123,67 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
   }, [students, search, filterGender, filterCourse]);
 
   // Unique values for filter dropdowns
-  const uniqueGenders = useMemo(() => [...new Set(students.map((s) => s.gender))], [students]);
-  const uniqueCourses = useMemo(() => [...new Set(students.map((s) => s.courseEnrolled))], [students]);
+  const uniqueGenders = useMemo(
+    () => [...new Set(students.map((s) => s.gender))],
+    [students],
+  );
+  const uniqueCourses = useMemo(
+    () => [...new Set(students.map((s) => s.courseEnrolled))],
+    [students],
+  );
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   // Reset page when filters change
-  useEffect(() => { setPage(1); }, [search, filterGender, filterCourse, pageSize]);
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterGender, filterCourse, pageSize]);
 
-  // ─── Delete ───
   const handleDeleteConfirm = async () => {
     if (!confirmId) return;
+
+    // ── Detect self-deletion before making the API call ─────
+    const isSelfDeletion = user !== null && user._id === confirmId;
+
     setDeleting(confirmId);
     setConfirmId(null);
+
     try {
       const res = await deleteStudentApi(confirmId);
+
       if (res.success) {
-        setStudents((prev) => prev.filter((s) => s._id !== confirmId));
-        toast.success('Student deleted successfully');
+        // ── Case 1: User deleted SOMEONE ELSE'S account ─────
+        if (!isSelfDeletion) {
+          setStudents((prev) => prev.filter((s) => s._id !== confirmId));
+          toast.success("Student deleted successfully");
+          return;
+        }
+
+        // ── Case 2: User deleted THEIR OWN account ────
+        toast.success("Your account has been deleted. Redirecting to login…", {
+          duration: 3000,
+        });
+
+        setTimeout(() => {
+          forceLogout();
+          navigate("/login");
+        }, 1500);
       } else {
-        toast.error(res.message || 'Delete failed');
+        toast.error(res.message || "Delete failed");
       }
     } catch {
-      toast.error('Failed to delete student');
+      toast.error("Failed to delete student");
     } finally {
       setDeleting(null);
     }
   };
 
   const clearFilters = () => {
-    setSearch('');
-    setFilterGender('');
-    setFilterCourse('');
+    setSearch("");
+    setFilterGender("");
+    setFilterCourse("");
   };
 
   // ─── Render ───
@@ -144,7 +193,10 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
       <div className="flex flex-col sm:flex-row gap-3">
         {/* Search */}
         <div className="relative flex-1">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <Search
+            size={16}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+          />
           <input
             type="text"
             value={search}
@@ -154,7 +206,7 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
           />
           {search && (
             <button
-              onClick={() => setSearch('')}
+              onClick={() => setSearch("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
             >
               ×
@@ -165,7 +217,7 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
         {/* Filter toggle */}
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`btn-secondary py-2.5 px-4 text-sm ${showFilters ? 'border-primary-500/50 text-primary-400' : ''}`}
+          className={`btn-secondary py-2.5 px-4 text-sm ${showFilters ? "border-primary-500/50 text-primary-400" : ""}`}
         >
           <Filter size={15} />
           Filters
@@ -181,7 +233,7 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
           className="btn-secondary py-2.5 px-4 text-sm"
           title="Refresh"
         >
-          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
           <span className="hidden sm:inline">Refresh</span>
         </button>
       </div>
@@ -199,7 +251,9 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
               >
                 <option value="">All Genders</option>
                 {uniqueGenders.map((g) => (
-                  <option key={g} value={g} className="bg-slate-800">{g}</option>
+                  <option key={g} value={g} className="bg-slate-800">
+                    {g}
+                  </option>
                 ))}
               </select>
             </div>
@@ -212,12 +266,17 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
               >
                 <option value="">All Courses</option>
                 {uniqueCourses.map((c) => (
-                  <option key={c} value={c} className="bg-slate-800">{c}</option>
+                  <option key={c} value={c} className="bg-slate-800">
+                    {c}
+                  </option>
                 ))}
               </select>
             </div>
             {(filterGender || filterCourse) && (
-              <button onClick={clearFilters} className="btn-secondary py-2 px-3 text-xs">
+              <button
+                onClick={clearFilters}
+                className="btn-secondary py-2 px-3 text-xs"
+              >
                 Clear Filters
               </button>
             )}
@@ -228,15 +287,21 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
       {/* Stats bar */}
       <div className="flex items-center justify-between text-xs text-slate-500 font-body px-1">
         <span>
-          {loading ? 'Loading…' : (
+          {loading ? (
+            "Loading…"
+          ) : (
             <>
-              Showing{' '}
+              Showing{" "}
               <span className="text-slate-300 font-medium">
-                {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)}
-              </span>{' '}
-              of{' '}
-              <span className="text-slate-300 font-medium">{filtered.length}</span>{' '}
-              {filtered.length !== students.length && `(filtered from ${students.length})`}
+                {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–
+                {Math.min(page * pageSize, filtered.length)}
+              </span>{" "}
+              of{" "}
+              <span className="text-slate-300 font-medium">
+                {filtered.length}
+              </span>{" "}
+              {filtered.length !== students.length &&
+                `(filtered from ${students.length})`}
             </>
           )}
         </span>
@@ -248,7 +313,9 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
             className="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-slate-300 text-xs"
           >
             {PAGE_SIZE_OPTIONS.map((n) => (
-              <option key={n} value={n}>{n}</option>
+              <option key={n} value={n}>
+                {n}
+              </option>
             ))}
           </select>
         </div>
@@ -273,16 +340,19 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
           </div>
           <div>
             <p className="text-slate-300 font-display font-semibold text-lg">
-              {students.length === 0 ? 'No students yet' : 'No results found'}
+              {students.length === 0 ? "No students yet" : "No results found"}
             </p>
             <p className="text-slate-500 text-sm font-body mt-1">
               {students.length === 0
-                ? 'Register your first student using the button above'
-                : 'Try adjusting your search or filter criteria'}
+                ? "Register your first student using the button above"
+                : "Try adjusting your search or filter criteria"}
             </p>
           </div>
           {(search || filterGender || filterCourse) && (
-            <button onClick={clearFilters} className="btn-secondary text-sm py-2">
+            <button
+              onClick={clearFilters}
+              className="btn-secondary text-sm py-2"
+            >
               Clear filters
             </button>
           )}
@@ -297,13 +367,27 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-700/50 bg-slate-800/40">
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">#</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">Student</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">Phone</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">Course</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">Gender</th>
-                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">DOB</th>
-                    <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">Actions</th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">
+                      #
+                    </th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">
+                      Student
+                    </th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">
+                      Phone
+                    </th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">
+                      Course
+                    </th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">
+                      Gender
+                    </th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">
+                      DOB
+                    </th>
+                    <th className="text-center px-5 py-3.5 text-xs font-semibold text-slate-400 uppercase tracking-wider font-body">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/30">
@@ -410,10 +494,18 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
                     </div>
                   </div>
                   <button
-                    onClick={() => setExpandedId(expandedId === student._id ? null : student._id)}
+                    onClick={() =>
+                      setExpandedId(
+                        expandedId === student._id ? null : student._id,
+                      )
+                    }
                     className="text-slate-400 hover:text-slate-200 transition-colors flex-shrink-0 p-1"
                   >
-                    {expandedId === student._id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    {expandedId === student._id ? (
+                      <ChevronUp size={16} />
+                    ) : (
+                      <ChevronDown size={16} />
+                    )}
                   </button>
                 </div>
 
@@ -431,24 +523,45 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
                 {expandedId === student._id && (
                   <div className="space-y-2 pt-2 border-t border-slate-700/40 animate-slide-up">
                     <div className="flex items-center gap-2 text-sm text-slate-300">
-                      <Mail size={13} className="text-slate-500 flex-shrink-0" />
-                      <span className="font-body truncate">{student.email}</span>
+                      <Mail
+                        size={13}
+                        className="text-slate-500 flex-shrink-0"
+                      />
+                      <span className="font-body truncate">
+                        {student.email}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-slate-300">
-                      <Phone size={13} className="text-slate-500 flex-shrink-0" />
+                      <Phone
+                        size={13}
+                        className="text-slate-500 flex-shrink-0"
+                      />
                       <span className="font-mono">{student.phoneNumber}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-slate-300">
-                      <Calendar size={13} className="text-slate-500 flex-shrink-0" />
-                      <span className="font-body">{formatDate(student.dateOfBirth)}</span>
+                      <Calendar
+                        size={13}
+                        className="text-slate-500 flex-shrink-0"
+                      />
+                      <span className="font-body">
+                        {formatDate(student.dateOfBirth)}
+                      </span>
                     </div>
                     <div className="flex items-start gap-2 text-sm text-slate-300">
-                      <MapPin size={13} className="text-slate-500 flex-shrink-0 mt-0.5" />
+                      <MapPin
+                        size={13}
+                        className="text-slate-500 flex-shrink-0 mt-0.5"
+                      />
                       <span className="font-body">{student.address}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-slate-300">
-                      <BookOpen size={13} className="text-slate-500 flex-shrink-0" />
-                      <span className="font-body">{student.courseEnrolled}</span>
+                      <BookOpen
+                        size={13}
+                        className="text-slate-500 flex-shrink-0"
+                      />
+                      <span className="font-body">
+                        {student.courseEnrolled}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -501,28 +614,36 @@ const StudentList: React.FC<StudentListProps> = ({ onEdit, refreshTrigger }) => 
 
           <div className="flex items-center gap-1.5">
             {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-              .reduce<(number | '...')[]>((acc, p, idx, arr) => {
-                if (idx > 0 && (arr[idx - 1] as number) !== p - 1) acc.push('...');
+              .filter(
+                (p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1,
+              )
+              .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                if (idx > 0 && (arr[idx - 1] as number) !== p - 1)
+                  acc.push("...");
                 acc.push(p);
                 return acc;
               }, [])
               .map((p, idx) =>
-                p === '...' ? (
-                  <span key={`dots-${idx}`} className="text-slate-500 px-1 text-sm">…</span>
+                p === "..." ? (
+                  <span
+                    key={`dots-${idx}`}
+                    className="text-slate-500 px-1 text-sm"
+                  >
+                    …
+                  </span>
                 ) : (
                   <button
                     key={p}
                     onClick={() => setPage(p as number)}
                     className={`w-9 h-9 rounded-lg text-sm font-body font-medium transition-all duration-200 ${
                       page === p
-                        ? 'bg-primary-600 text-white shadow-glow'
-                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-700/60'
+                        ? "bg-primary-600 text-white shadow-glow"
+                        : "text-slate-400 hover:text-slate-100 hover:bg-slate-700/60"
                     }`}
                   >
                     {p}
                   </button>
-                )
+                ),
               )}
           </div>
 
